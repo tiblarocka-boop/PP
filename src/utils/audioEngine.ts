@@ -668,7 +668,7 @@ class AudioEngine {
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
       throw new Error(
-        'System audio capture is not supported by this browser. Use Chrome on Android with desktop site or a PWA loopback.'
+        'Android OS does not allow WebViews to capture audio from other background apps (YouTube/Spotify). To process audio on your phone, play local audio files, tune into live streams in the STREAM tab, or use Microphone/Line-In passthrough!'
       );
     }
 

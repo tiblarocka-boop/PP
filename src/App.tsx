@@ -23,6 +23,8 @@ import { ToneAndFxView } from './components/ToneAndFxView';
 import { LimiterView } from './components/LimiterView';
 import { PresetsView } from './components/PresetsView';
 import { DspStatusBar } from './components/DspStatusBar';
+import { StreamMediaView } from './components/StreamMediaView';
+import { PlayerBar } from './components/PlayerBar';
 import { AboutModal } from './components/AboutModal';
 import { SettingsModal } from './components/SettingsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -42,8 +44,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export default function App() {
-  // Navigation tab: Pure Poweramp DSP Modules
-  const [activeTab, setActiveTab] = useState<'eq' | 'tone' | 'limiter' | 'presets'>('eq');
+  // Navigation tab: Pure Poweramp DSP Modules & Audio Streaming
+  const [activeTab, setActiveTab] = useState<'eq' | 'tone' | 'limiter' | 'presets' | 'stream'>('eq');
+  const [showPlayerBar, setShowPlayerBar] = useState<boolean>(true);
 
   // Equalizer state
   const [mode, setMode] = useState<EQMode>('10');
@@ -278,7 +281,11 @@ export default function App() {
         await audioEngine.enableSystemAudioCapture();
         setIsSystemCaptureActive(true);
       } catch (err) {
-        alert((err as Error).message);
+        setIsSystemCaptureActive(false);
+        setActiveTab('stream');
+        alert(
+          'Android blocks capturing audio directly from background apps (YouTube/Spotify) due to Android OS security.\n\nOpening the AUDIO & STREAMS tab where you can play local songs, tune into live web radio, or use Microphone/Line-In!'
+        );
       }
     }
   };
@@ -447,11 +454,27 @@ export default function App() {
               onImportPresets={handleImportPresets}
             />
           )}
+
+          {activeTab === 'stream' && (
+            <StreamMediaView
+              onAudioStart={handleUserAudioStart}
+              onSetTrackName={() => {}}
+            />
+          )}
         </main>
       </div>
 
-      {/* Fixed Bottom Poweramp DSP Status Deck (NO PLAYER) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 max-w-2xl mx-auto">
+      {/* Fixed Bottom Poweramp DSP Deck & Player Controls */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 max-w-2xl mx-auto shadow-2xl">
+        {showPlayerBar && (
+          <div className="bg-[#090d16]/95 backdrop-blur-md border-t border-slate-800/80">
+            <PlayerBar
+              onAudioStart={handleUserAudioStart}
+              onToggleSystemCapture={handleToggleSystemCapture}
+              isSystemCaptureActive={isSystemCaptureActive}
+            />
+          </div>
+        )}
         <DspStatusBar
           isBypassed={isBypassed}
           dvcEnabled={settings.dvcEnabled}

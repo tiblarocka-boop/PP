@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { audioEngine } from '../utils/audioEngine';
-import { Activity, ShieldCheck, Sparkles, Sliders } from 'lucide-react';
+import { Activity, ShieldCheck, Sparkles, Sliders, Radio } from 'lucide-react';
 
 interface DspStatusBarProps {
   isBypassed: boolean;
   dvcEnabled: boolean;
   limiterActive: boolean;
   activeTab: string;
-  onSelectTab: (tab: 'eq' | 'tone' | 'limiter' | 'presets') => void;
+  onSelectTab: (tab: 'eq' | 'tone' | 'limiter' | 'presets' | 'stream') => void;
 }
 
 export const DspStatusBar: React.FC<DspStatusBarProps> = ({
@@ -56,7 +56,7 @@ export const DspStatusBar: React.FC<DspStatusBarProps> = ({
   }, [isBypassed]);
 
   return (
-    <div className="w-full bg-[#080b12]/95 backdrop-blur-md border-t border-slate-800/90 px-3 py-2 flex flex-col gap-2 shadow-2xl">
+    <div className="w-full bg-[#080b12]/95 backdrop-blur-md border-t border-slate-800/90 px-2.5 py-1.5 flex flex-col gap-1.5 shadow-2xl">
       {/* Top DSP Row: Live Stereo VU Meters & Gain Reduction */}
       <div className="flex items-center justify-between gap-3 text-[10px] font-mono">
         {/* Left / Right Stereo VU meters */}
@@ -115,56 +115,66 @@ export const DspStatusBar: React.FC<DspStatusBarProps> = ({
         </div>
       </div>
 
-      {/* Bottom Sub-Navigation Tabs (Poweramp Equalizer signature style) */}
-      <div className="grid grid-cols-4 gap-1 p-0.5 rounded-xl bg-slate-950/80 border border-slate-800/80">
+      {/* Bottom Sub-Navigation Tabs: 5 Essential Modules */}
+      <div className="grid grid-cols-5 gap-1 p-0.5 rounded-xl bg-slate-950/80 border border-slate-800/80">
         <button
           onClick={() => onSelectTab('eq')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
             activeTab === 'eq'
               ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Sliders className="w-3.5 h-3.5" />
-          <span>EQUALIZER</span>
+          <Sliders className="w-3 h-3" />
+          <span className="truncate">EQ</span>
         </button>
 
         <button
           onClick={() => onSelectTab('tone')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
             activeTab === 'tone'
               ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>TONE &amp; FX</span>
+          <Sparkles className="w-3 h-3" />
+          <span className="truncate">TONE</span>
         </button>
 
         <button
           onClick={() => onSelectTab('limiter')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
             activeTab === 'limiter'
               ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>LIMITER</span>
+          <ShieldCheck className="w-3 h-3" />
+          <span className="truncate">LIMIT</span>
         </button>
 
         <button
           onClick={() => onSelectTab('presets')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
             activeTab === 'presets'
               ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <span className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-cyan-400">
-            P
-          </span>
-          <span>PRESETS</span>
+          <span className="text-[10px] font-bold text-cyan-400">P</span>
+          <span className="truncate">PRESETS</span>
+        </button>
+
+        <button
+          onClick={() => onSelectTab('stream')}
+          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+            activeTab === 'stream'
+              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Radio className="w-3 h-3 text-cyan-400" />
+          <span className="truncate">AUDIO</span>
         </button>
       </div>
     </div>
