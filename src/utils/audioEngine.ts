@@ -606,6 +606,37 @@ class AudioEngine {
     return this.audioElement;
   }
 
+  // 2b. Play Online Audio Stream / Radio / URL
+  public async playStream(url: string): Promise<HTMLAudioElement> {
+    await this.initContext();
+    this.stopAllSources();
+
+    if (!this.audioElement) {
+      this.audioElement = new Audio();
+      this.audioElement.crossOrigin = 'anonymous';
+      this.audioElement.loop = true;
+    }
+
+    this.audioElement.src = url;
+    this.audioElement.playbackRate = this.spatial.tempo;
+
+    if (!this.mediaElementSource && this.ctx && this.inputNode) {
+      this.mediaElementSource = this.ctx.createMediaElementSource(this.audioElement);
+      this.mediaElementSource.connect(this.inputNode);
+    }
+
+    try {
+      await this.audioElement.play();
+    } catch {
+      // In case crossOrigin anonymous fails due to CORS, retry without crossOrigin
+      this.audioElement.removeAttribute('crossorigin');
+      await this.audioElement.play();
+    }
+
+    this.currentSourceType = 'file';
+    return this.audioElement;
+  }
+
   // 3. Microphone Passthrough Mode
   public async enableMicrophone(): Promise<void> {
     await this.initContext();

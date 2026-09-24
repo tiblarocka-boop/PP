@@ -193,17 +193,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {/* Android Poweramp Advanced Player Tracking / DUMP Explanation */}
-              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2.5">
+              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-3">
                 <div className="flex items-center gap-2 text-amber-400 font-semibold">
                   <Smartphone className="w-4 h-4" />
-                  <span>Android Native APK Player Tracking (DUMP)</span>
+                  <span>How to Grant DUMP Permission with Shizuku (No PC)</span>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  When installed as an Android APK, Android limits background audio interception
-                  unless granted session tracking. In Poweramp Equalizer, you grant the{' '}
-                  <code className="text-amber-300 font-num">DUMP</code> permission via Shizuku or
-                  ADB:
+
+                <div className="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-800/40 text-[11px] text-cyan-200">
+                  <strong>💡 Easier Alternative:</strong> You don't actually need Shizuku if you use the{' '}
+                  <span className="text-cyan-400 font-bold">Route YouTube / Spotify Audio</span> button
+                  above! That uses Android's native audio stream capture without requiring any system permissions.
+                </div>
+
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  If you want background <strong>Player Tracking</strong> (Poweramp style) via Shizuku:
                 </p>
+
+                <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-400">
+                  <li>
+                    Install <strong className="text-slate-200">Shizuku</strong> and{' '}
+                    <strong className="text-slate-200">aShell</strong> (free on Google Play Store).
+                  </li>
+                  <li>
+                    Open phone <strong>Settings &rarr; About phone</strong> &rarr; Tap{' '}
+                    <strong>Build number</strong> 7 times to unlock Developer options.
+                  </li>
+                  <li>
+                    Go to <strong>Developer options</strong> &rarr; turn on{' '}
+                    <strong>Wireless debugging</strong>.
+                  </li>
+                  <li>
+                    Open <strong>Shizuku</strong> &rarr; tap <strong>Pairing</strong> and enter the 6-digit code.
+                  </li>
+                  <li>
+                    Open <strong>aShell</strong>, grant it Shizuku access, and run:
+                  </li>
+                </ol>
 
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-900 border border-slate-800">
                   <code className="text-[10px] font-num text-cyan-300 flex-1 truncate">
@@ -211,13 +236,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </code>
                   <button
                     onClick={handleCopyAdb}
-                    className="p-1 rounded text-slate-400 hover:text-white transition-colors"
-                    title="Copy ADB command"
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors"
+                    title="Copy command"
                   >
                     {copiedAdb ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[10px] text-emerald-400">Copied</span>
+                      </>
                     ) : (
-                      <Copy className="w-3.5 h-3.5" />
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span className="text-[10px]">Copy</span>
+                      </>
                     )}
                   </button>
                 </div>

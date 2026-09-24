@@ -22,11 +22,10 @@ import { EqualizerView } from './components/EqualizerView';
 import { ToneAndFxView } from './components/ToneAndFxView';
 import { LimiterView } from './components/LimiterView';
 import { PresetsView } from './components/PresetsView';
-import { PlayerBar } from './components/PlayerBar';
+import { DspStatusBar } from './components/DspStatusBar';
 import { AboutModal } from './components/AboutModal';
 import { SettingsModal } from './components/SettingsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { Sliders, SlidersHorizontal, ShieldCheck, Bookmark } from 'lucide-react';
 
 const STORAGE_KEY_SETTINGS = 'fatyliser_app_settings_v1';
 
@@ -43,7 +42,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export default function App() {
-  // Navigation tab
+  // Navigation tab: Pure Poweramp DSP Modules
   const [activeTab, setActiveTab] = useState<'eq' | 'tone' | 'limiter' | 'presets'>('eq');
 
   // Equalizer state
@@ -53,7 +52,7 @@ export default function App() {
   const [isBypassed, setIsBypassed] = useState<boolean>(false);
   const [visualizerMode, setVisualizerMode] = useState<VisualizerMode>('spectrum');
 
-  // Tone & Spatial FX state
+  // Tone & Spatial FX state (Poweramp signature Bass & Treble)
   const [tone, setTone] = useState<ToneSettings>({
     bassGain: 0,
     bassFreq: 100,
@@ -68,7 +67,7 @@ export default function App() {
     pitch: 0,
   });
 
-  // Limiter state
+  // Limiter & Dynamics state
   const [limiter, setLimiter] = useState<LimiterSettings>({
     enabled: true,
     threshold: -3,
@@ -103,7 +102,7 @@ export default function App() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Initialize engine on first user interaction
+  // Initialize engine on first interaction
   const handleUserAudioStart = useCallback(() => {
     audioEngine.initContext();
   }, []);
@@ -143,6 +142,7 @@ export default function App() {
 
   // Preamp change with optional auto-gain compensation
   const handlePreampChange = (db: number) => {
+    handleUserAudioStart();
     setPreamp(db);
     audioEngine.setPreamp(db);
     if (settings.hapticFeedback) {
@@ -152,13 +152,14 @@ export default function App() {
 
   // Band gain change
   const handleBandGainChange = (index: number, gain: number) => {
+    handleUserAudioStart();
     setBands((prev) => {
       const next = [...prev];
       if (next[index]) {
         next[index] = { ...next[index], gain };
       }
 
-      // Auto-gain compensation calculation
+      // Auto-gain compensation
       if (settings.autoGainCompensation) {
         const maxBoost = Math.max(...next.map((b) => b.gain), 0);
         if (maxBoost > 6) {
@@ -180,6 +181,7 @@ export default function App() {
 
   // Mode change (10, 16, 32 bands)
   const handleModeChange = (newMode: EQMode) => {
+    handleUserAudioStart();
     setMode(newMode);
     const newBands = audioEngine.createDefaultBands(newMode);
     if (newMode === '10') {
@@ -196,6 +198,7 @@ export default function App() {
 
   // Reset bands to flat
   const handleResetBands = () => {
+    handleUserAudioStart();
     const next = bands.map((b) => ({ ...b, gain: 0 }));
     setBands(next);
     audioEngine.setAllBands(next);
@@ -207,6 +210,7 @@ export default function App() {
 
   // Invert current bands
   const handleInvertBands = () => {
+    handleUserAudioStart();
     const next = bands.map((b) => ({ ...b, gain: -b.gain }));
     setBands(next);
     audioEngine.setAllBands(next);
@@ -215,8 +219,9 @@ export default function App() {
     }
   };
 
-  // Tone update
+  // Tone update (Bass / Treble)
   const handleToneChange = (newTone: Partial<ToneSettings>) => {
+    handleUserAudioStart();
     const updated = { ...tone, ...newTone };
     setTone(updated);
     audioEngine.setTone(newTone);
@@ -225,8 +230,9 @@ export default function App() {
     }
   };
 
-  // Spatial update
+  // Spatial update (Stereo width / Ambience / Tempo)
   const handleSpatialChange = (newSpatial: Partial<SpatialSettings>) => {
+    handleUserAudioStart();
     const updated = { ...spatial, ...newSpatial };
     setSpatial(updated);
     audioEngine.setSpatial(newSpatial);
@@ -234,6 +240,7 @@ export default function App() {
 
   // Limiter update
   const handleLimiterChange = (newLimiter: Partial<LimiterSettings>) => {
+    handleUserAudioStart();
     const updated = { ...limiter, ...newLimiter };
     setLimiter(updated);
     audioEngine.setLimiter(newLimiter);
@@ -244,6 +251,7 @@ export default function App() {
 
   // Bypass toggle
   const handleToggleBypass = () => {
+    handleUserAudioStart();
     const next = !isBypassed;
     setIsBypassed(next);
     audioEngine.setBypass(next);
@@ -259,7 +267,7 @@ export default function App() {
     );
   };
 
-  // Toggle System Audio / YouTube / Spotify Capture
+  // Toggle System Audio Capture
   const handleToggleSystemCapture = async () => {
     handleUserAudioStart();
     if (isSystemCaptureActive) {
@@ -277,6 +285,7 @@ export default function App() {
 
   // Apply Preset
   const handleSelectPreset = (preset: EQPreset) => {
+    handleUserAudioStart();
     setCurrentPresetId(preset.id);
     handlePreampChange(preset.preamp);
 
@@ -365,17 +374,24 @@ export default function App() {
     setAllPresets([...DEFAULT_PRESETS, ...merged]);
   };
 
+  const activePresetName =
+    allPresets.find((p) => p.id === currentPresetId)?.name || 'Custom';
+
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-between selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Offline Alert */}
       <OfflineIndicator />
 
       {/* Main Container */}
-      <div className="w-full max-w-2xl mx-auto flex flex-col flex-1 pb-24 md:pb-28">
-        {/* Top App Bar */}
+      <div className="w-full max-w-2xl mx-auto flex flex-col flex-1 pb-20 md:pb-24">
+        {/* Poweramp Signature Header */}
         <Header
           isBypassed={isBypassed}
           onToggleBypass={handleToggleBypass}
+          currentPresetName={activePresetName}
+          onOpenPresets={() => setActiveTab('presets')}
+          dvcEnabled={settings.dvcEnabled}
+          limiterActive={limiter.enabled}
           onOpenAbout={() => setIsAboutOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
@@ -391,67 +407,16 @@ export default function App() {
           />
         </div>
 
-        {/* Tab Sub-navigation Bar (Poweramp Android Style) */}
-        <div className="px-3 pb-2">
-          <div className="grid grid-cols-4 p-1 rounded-xl bg-slate-950/80 border border-slate-800/80">
-            <button
-              onClick={() => setActiveTab('eq')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'eq'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>EQ</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('tone')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'tone'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>TONE</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('limiter')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'limiter'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>LIMITER</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('presets')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'presets'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Bookmark className="w-3.5 h-3.5" />
-              <span>PRESETS</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Content Area */}
+        {/* Core DSP Tab Content (No Player Controls) */}
         <main className="flex-1 px-3">
           {activeTab === 'eq' && (
             <EqualizerView
               bands={bands}
               mode={mode}
               preamp={preamp}
+              tone={tone}
               onPreampChange={handlePreampChange}
+              onToneChange={handleToneChange}
               onBandGainChange={handleBandGainChange}
               onModeChange={handleModeChange}
               onResetBands={handleResetBands}
@@ -485,12 +450,14 @@ export default function App() {
         </main>
       </div>
 
-      {/* Fixed Bottom Audio Player Transport */}
+      {/* Fixed Bottom Poweramp DSP Status Deck (NO PLAYER) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 max-w-2xl mx-auto">
-        <PlayerBar
-          onAudioStart={handleUserAudioStart}
-          onToggleSystemCapture={handleToggleSystemCapture}
-          isSystemCaptureActive={isSystemCaptureActive}
+        <DspStatusBar
+          isBypassed={isBypassed}
+          dvcEnabled={settings.dvcEnabled}
+          limiterActive={limiter.enabled}
+          activeTab={activeTab}
+          onSelectTab={(t) => setActiveTab(t)}
         />
       </div>
 
@@ -504,7 +471,7 @@ export default function App() {
         onToggleSystemAudioCapture={handleToggleSystemCapture}
       />
 
-      {/* About & PWA Guide Modal */}
+      {/* About Modal */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
   );
