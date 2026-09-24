@@ -1,0 +1,6 @@
+{
+  "name": "Fatyliser",
+  "description": "Fatyliser - Advanced Audiophile Equalizer & Sound Engine made by pp48, featuring parametric and graphic EQ, tone knobs, compressor, limiter, and real-time audio visualization.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
