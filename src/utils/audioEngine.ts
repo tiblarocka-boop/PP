@@ -28,11 +28,14 @@ class AudioEngine {
   private reverbWetGain: GainNode | null = null;
 
   // Source management
-  private currentSourceType: 'synth' | 'file' | 'mic' | 'none' = 'none';
+  private currentSourceType: 'synth' | 'file' | 'mic' | 'system' | 'none' = 'none';
   private audioElement: HTMLAudioElement | null = null;
   private mediaElementSource: MediaElementAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
+  private systemStream: MediaStream | null = null;
+  private systemSource: MediaStreamAudioSourceNode | null = null;
+  private wakeLockSentinel: any = null;
 
   // Synthetic loop generator (Builtin tracks)
   private synthInterval: number | null = null;
@@ -627,6 +630,83 @@ class AudioEngine {
     this.currentSourceType = 'mic';
   }
 
+  // 4. System / Streaming Apps Capture (YouTube, Spotify, Other Players)
+  public async enableSystemAudioCapture(): Promise<void> {
+    await this.initContext();
+    this.stopAllSources();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      throw new Error(
+        'System audio capture is not supported by this browser. Use Chrome on Android with desktop site or a PWA loopback.'
+      );
+    }
+
+    try {
+      this.systemStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+
+      // Check if audio track exists
+      const audioTracks = this.systemStream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        this.stopAllSources();
+        throw new Error('No audio track selected. Make sure to check "Share audio" when selecting the tab or app!');
+      }
+
+      // Stop video tracks to save phone battery & CPU
+      this.systemStream.getVideoTracks().forEach((vt) => vt.stop());
+
+      if (this.ctx && this.inputNode) {
+        this.systemSource = this.ctx.createMediaStreamSource(this.systemStream);
+        this.systemSource.connect(this.inputNode);
+      }
+      this.currentSourceType = 'system';
+    } catch (err) {
+      this.stopAllSources();
+      throw err;
+    }
+  }
+
+  // Haptic feedback trigger (tactile clicks on mobile knobs & sliders)
+  public triggerHaptic(duration = 6): void {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(duration);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // WakeLock API to keep phone screen awake
+  public async requestWakeLock(): Promise<boolean> {
+    if ('wakeLock' in navigator) {
+      try {
+        this.wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  public releaseWakeLock(): void {
+    if (this.wakeLockSentinel) {
+      try {
+        this.wakeLockSentinel.release();
+      } catch {
+        // ignore
+      }
+      this.wakeLockSentinel = null;
+    }
+  }
+
   public stopAllSources(): void {
     if (this.synthInterval !== null) {
       clearInterval(this.synthInterval);
@@ -652,6 +732,20 @@ class AudioEngine {
       this.micSource = null;
     }
 
+    if (this.systemStream) {
+      this.systemStream.getTracks().forEach((t) => t.stop());
+      this.systemStream = null;
+    }
+
+    if (this.systemSource) {
+      try {
+        this.systemSource.disconnect();
+      } catch {
+        // ignore
+      }
+      this.systemSource = null;
+    }
+
     this.currentSourceType = 'none';
   }
 
@@ -665,7 +759,7 @@ class AudioEngine {
     return this.audioElement;
   }
 
-  public getCurrentSourceType(): 'synth' | 'file' | 'mic' | 'none' {
+  public getCurrentSourceType(): 'synth' | 'file' | 'mic' | 'system' | 'none' {
     return this.currentSourceType;
   }
 
@@ -674,7 +768,7 @@ class AudioEngine {
     if (this.currentSourceType === 'file' && this.audioElement) {
       return !this.audioElement.paused;
     }
-    if (this.currentSourceType === 'mic') return true;
+    if (this.currentSourceType === 'mic' || this.currentSourceType === 'system') return true;
     return false;
   }
 }

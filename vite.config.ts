@@ -13,7 +13,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['apple-touch-icon.png', 'icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
-          id: '/',
+          id: 'com.pp48.fatyliser',
           name: 'Fatyliser - Poweramp Equalizer',
           short_name: 'Fatyliser',
           description: 'Advanced Audiophile Equalizer & Sound Engine by pp48',
@@ -23,6 +23,9 @@ export default defineConfig(() => {
           orientation: 'portrait',
           start_url: '/',
           scope: '/',
+          lang: 'en',
+          dir: 'ltr',
+          categories: ['music', 'audio', 'utilities'],
           icons: [
             {
               src: '/pwa-192x192.png',

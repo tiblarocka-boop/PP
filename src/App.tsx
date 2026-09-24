@@ -1,7 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { EQBand, EQMode, ToneSettings, LimiterSettings, SpatialSettings, EQPreset, VisualizerMode } from './types/audio';
+import {
+  EQBand,
+  EQMode,
+  ToneSettings,
+  LimiterSettings,
+  SpatialSettings,
+  EQPreset,
+  VisualizerMode,
+  AppSettings,
+} from './types/audio';
 import { audioEngine } from './utils/audioEngine';
-import { DEFAULT_PRESETS, getStoredCustomPresets, saveStoredCustomPresets, STANDARD_FREQUENCIES_10 } from './utils/presets';
+import {
+  DEFAULT_PRESETS,
+  getStoredCustomPresets,
+  saveStoredCustomPresets,
+  STANDARD_FREQUENCIES_10,
+} from './utils/presets';
 import { Header } from './components/Header';
 import { FrequencyGraph } from './components/FrequencyGraph';
 import { EqualizerView } from './components/EqualizerView';
@@ -10,8 +24,23 @@ import { LimiterView } from './components/LimiterView';
 import { PresetsView } from './components/PresetsView';
 import { PlayerBar } from './components/PlayerBar';
 import { AboutModal } from './components/AboutModal';
+import { SettingsModal } from './components/SettingsModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { Sliders, SlidersHorizontal, ShieldCheck, Bookmark, Sparkles } from 'lucide-react';
+import { Sliders, SlidersHorizontal, ShieldCheck, Bookmark } from 'lucide-react';
+
+const STORAGE_KEY_SETTINGS = 'fatyliser_app_settings_v1';
+
+const DEFAULT_SETTINGS: AppSettings = {
+  themeAccent: 'cyan',
+  dvcEnabled: true,
+  autoGainCompensation: true,
+  hapticFeedback: true,
+  keepScreenAwake: true,
+  sampleRate: 48000,
+  bufferMode: 'low',
+  advancedTrackingEnabled: true,
+  knownPlayers: ['Spotify', 'YouTube', 'YouTube Music', 'Musicolet', 'Poweramp', 'VLC'],
+};
 
 export default function App() {
   // Navigation tab
@@ -56,18 +85,69 @@ export default function App() {
     ...getStoredCustomPresets(),
   ]);
 
-  // Modal
+  // App Settings state
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_SETTINGS);
+      if (stored) return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+    } catch {
+      // ignore
+    }
+    return DEFAULT_SETTINGS;
+  });
+
+  // System audio capture state
+  const [isSystemCaptureActive, setIsSystemCaptureActive] = useState<boolean>(false);
+
+  // Modals
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Initialize engine on first user interaction
   const handleUserAudioStart = useCallback(() => {
     audioEngine.initContext();
   }, []);
 
-  // Preamp change
+  // Save settings on update
+  const handleUpdateSettings = (newSettings: Partial<AppSettings>) => {
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  // Manage WakeLock based on setting
+  useEffect(() => {
+    if (settings.keepScreenAwake) {
+      audioEngine.requestWakeLock();
+    } else {
+      audioEngine.releaseWakeLock();
+    }
+    return () => {
+      audioEngine.releaseWakeLock();
+    };
+  }, [settings.keepScreenAwake]);
+
+  // Check system audio capture status periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsSystemCaptureActive(audioEngine.getCurrentSourceType() === 'system');
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Preamp change with optional auto-gain compensation
   const handlePreampChange = (db: number) => {
     setPreamp(db);
     audioEngine.setPreamp(db);
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(5);
+    }
   };
 
   // Band gain change
@@ -77,16 +157,31 @@ export default function App() {
       if (next[index]) {
         next[index] = { ...next[index], gain };
       }
+
+      // Auto-gain compensation calculation
+      if (settings.autoGainCompensation) {
+        const maxBoost = Math.max(...next.map((b) => b.gain), 0);
+        if (maxBoost > 6) {
+          const compOffset = -((maxBoost - 6) * 0.4);
+          audioEngine.setPreamp(preamp + compOffset);
+        } else {
+          audioEngine.setPreamp(preamp);
+        }
+      }
+
       return next;
     });
     audioEngine.setBandGain(index, gain);
+
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(4);
+    }
   };
 
   // Mode change (10, 16, 32 bands)
   const handleModeChange = (newMode: EQMode) => {
     setMode(newMode);
     const newBands = audioEngine.createDefaultBands(newMode);
-    // Interpolate or copy matching 10 bands if switching
     if (newMode === '10') {
       newBands.forEach((b, i) => {
         b.gain = bands[i] ? bands[i].gain : 0;
@@ -94,6 +189,9 @@ export default function App() {
     }
     setBands(newBands);
     audioEngine.rebuildEQFilters(newBands);
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(8);
+    }
   };
 
   // Reset bands to flat
@@ -102,6 +200,9 @@ export default function App() {
     setBands(next);
     audioEngine.setAllBands(next);
     setCurrentPresetId('flat');
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(10);
+    }
   };
 
   // Invert current bands
@@ -109,27 +210,36 @@ export default function App() {
     const next = bands.map((b) => ({ ...b, gain: -b.gain }));
     setBands(next);
     audioEngine.setAllBands(next);
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(8);
+    }
   };
 
   // Tone update
-  const handleToneChange = (settings: Partial<ToneSettings>) => {
-    const updated = { ...tone, ...settings };
+  const handleToneChange = (newTone: Partial<ToneSettings>) => {
+    const updated = { ...tone, ...newTone };
     setTone(updated);
-    audioEngine.setTone(settings);
+    audioEngine.setTone(newTone);
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(4);
+    }
   };
 
   // Spatial update
-  const handleSpatialChange = (settings: Partial<SpatialSettings>) => {
-    const updated = { ...spatial, ...settings };
+  const handleSpatialChange = (newSpatial: Partial<SpatialSettings>) => {
+    const updated = { ...spatial, ...newSpatial };
     setSpatial(updated);
-    audioEngine.setSpatial(settings);
+    audioEngine.setSpatial(newSpatial);
   };
 
   // Limiter update
-  const handleLimiterChange = (settings: Partial<LimiterSettings>) => {
-    const updated = { ...limiter, ...settings };
+  const handleLimiterChange = (newLimiter: Partial<LimiterSettings>) => {
+    const updated = { ...limiter, ...newLimiter };
     setLimiter(updated);
-    audioEngine.setLimiter(settings);
+    audioEngine.setLimiter(newLimiter);
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(6);
+    }
   };
 
   // Bypass toggle
@@ -137,6 +247,9 @@ export default function App() {
     const next = !isBypassed;
     setIsBypassed(next);
     audioEngine.setBypass(next);
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(12);
+    }
   };
 
   // Visualizer mode toggle
@@ -144,6 +257,22 @@ export default function App() {
     setVisualizerMode((prev) =>
       prev === 'spectrum' ? 'wave' : prev === 'wave' ? 'minimal' : 'spectrum'
     );
+  };
+
+  // Toggle System Audio / YouTube / Spotify Capture
+  const handleToggleSystemCapture = async () => {
+    handleUserAudioStart();
+    if (isSystemCaptureActive) {
+      audioEngine.stopAllSources();
+      setIsSystemCaptureActive(false);
+    } else {
+      try {
+        await audioEngine.enableSystemAudioCapture();
+        setIsSystemCaptureActive(true);
+      } catch (err) {
+        alert((err as Error).message);
+      }
+    }
   };
 
   // Apply Preset
@@ -166,9 +295,7 @@ export default function App() {
       setBands(next);
       audioEngine.setAllBands(next);
     } else {
-      // Map 10-band preset to 16 or 32 bands
       const next = bands.map((b) => {
-        // find nearest frequency from standard 10
         let nearestIdx = 0;
         let minDist = Infinity;
         STANDARD_FREQUENCIES_10.forEach((f10, idx) => {
@@ -185,6 +312,10 @@ export default function App() {
       });
       setBands(next);
       audioEngine.setAllBands(next);
+    }
+
+    if (settings.hapticFeedback) {
+      audioEngine.triggerHaptic(8);
     }
   };
 
@@ -246,6 +377,7 @@ export default function App() {
           isBypassed={isBypassed}
           onToggleBypass={handleToggleBypass}
           onOpenAbout={() => setIsAboutOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         {/* Real-time Frequency Response & Visualizer Graph */}
@@ -355,8 +487,22 @@ export default function App() {
 
       {/* Fixed Bottom Audio Player Transport */}
       <div className="fixed bottom-0 left-0 right-0 z-40 max-w-2xl mx-auto">
-        <PlayerBar onAudioStart={handleUserAudioStart} />
+        <PlayerBar
+          onAudioStart={handleUserAudioStart}
+          onToggleSystemCapture={handleToggleSystemCapture}
+          isSystemCaptureActive={isSystemCaptureActive}
+        />
       </div>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        settings={settings}
+        isSystemCaptureActive={isSystemCaptureActive}
+        onClose={() => setIsSettingsOpen(false)}
+        onUpdateSettings={handleUpdateSettings}
+        onToggleSystemAudioCapture={handleToggleSystemCapture}
+      />
 
       {/* About & PWA Guide Modal */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />

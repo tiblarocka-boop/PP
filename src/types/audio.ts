@@ -51,3 +51,18 @@ export interface BuiltinTrack {
   genre: string;
   type: 'synth_bass' | 'electro_groove' | 'audiophile_test' | 'lofi_ambient' | 'sub_rumble' | 'pink_noise';
 }
+
+export type ThemeAccent = 'cyan' | 'green' | 'amber' | 'blue' | 'purple';
+
+export interface AppSettings {
+  themeAccent: ThemeAccent;
+  dvcEnabled: boolean;
+  autoGainCompensation: boolean;
+  hapticFeedback: boolean;
+  keepScreenAwake: boolean;
+  sampleRate: number; // 48000, 96000, 192000
+  bufferMode: 'low' | 'balanced' | 'safe';
+  advancedTrackingEnabled: boolean;
+  knownPlayers: string[];
+}
+

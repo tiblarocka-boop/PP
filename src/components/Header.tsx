@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { Power, Info, Download, HelpCircle } from 'lucide-react';
+import { Power, Info, Download, HelpCircle, Settings } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface HeaderProps {
   isBypassed: boolean;
   onToggleBypass: () => void;
   onOpenAbout: () => void;
+  onOpenSettings: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   isBypassed,
   onToggleBypass,
   onOpenAbout,
+  onOpenSettings,
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
@@ -33,8 +35,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Zone 2: Informational / PWA button */}
-      <div className="flex items-center gap-2">
+      {/* Zone 2: Informational / PWA / Settings buttons */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
         {/* PWA Install Trigger */}
         {!isInstalled && isInstallable && (
           <button
@@ -60,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Bypass / Poweramp Master Switch */}
         <button
           onClick={onToggleBypass}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
             !isBypassed
               ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm shadow-cyan-500/20'
               : 'bg-slate-900 text-slate-500 border-slate-800'
@@ -75,11 +77,20 @@ export const Header: React.FC<HeaderProps> = ({
           <span>{!isBypassed ? 'EQ ON' : 'BYPASS'}</span>
         </button>
 
+        {/* Settings Button */}
+        <button
+          onClick={onOpenSettings}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors"
+          title="Audio Routing &amp; Engine Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+
         {/* Info / About trigger */}
         <button
           onClick={onOpenAbout}
           className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          title="About Fatyliser by pp48 & PWA Installation"
+          title="About Fatyliser by pp48 &amp; PWA Installation"
         >
           <HelpCircle className="w-4 h-4" />
         </button>

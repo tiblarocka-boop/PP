@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { audioEngine } from '../utils/audioEngine';
-import { Play, Pause, Square, Upload, Mic, MicOff, Volume2, RotateCcw, Music2, Disc } from 'lucide-react';
+import { Play, Pause, Square, Upload, Mic, MicOff, Volume2, RotateCcw, Music2, Disc, Radio } from 'lucide-react';
 
 interface PlayerBarProps {
   onAudioStart: () => void;
+  onToggleSystemCapture?: () => void;
+  isSystemCaptureActive?: boolean;
 }
 
-export const PlayerBar: React.FC<PlayerBarProps> = ({ onAudioStart }) => {
+export const PlayerBar: React.FC<PlayerBarProps> = ({
+  onAudioStart,
+  onToggleSystemCapture,
+  isSystemCaptureActive = false,
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [trackName, setTrackName] = useState('pp48 Sub-Bass Groove (Demo)');
-  const [sourceType, setSourceType] = useState<'synth' | 'file' | 'mic' | 'none'>('synth');
+  const [sourceType, setSourceType] = useState<'synth' | 'file' | 'mic' | 'system' | 'none'>('synth');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
@@ -219,6 +225,21 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({ onAudioStart }) => {
           >
             {sourceType === 'mic' ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </button>
+
+          {/* System Audio / YouTube / Spotify Capture button */}
+          {onToggleSystemCapture && (
+            <button
+              onClick={onToggleSystemCapture}
+              className={`p-2.5 rounded-xl border transition-colors ${
+                isSystemCaptureActive
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/20 animate-pulse'
+                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-cyan-300'
+              }`}
+              title="Capture System Audio / YouTube / Spotify"
+            >
+              <Radio className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
