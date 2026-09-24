@@ -1,0 +1,6 @@
+{
+  "appId": "com.fatyliser.eq",
+  "appName": "Fatyliser",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
