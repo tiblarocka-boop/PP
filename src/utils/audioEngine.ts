@@ -1,6 +1,18 @@
 import { EQBand, ToneSettings, LimiterSettings, SpatialSettings } from '../types/audio';
 import { STANDARD_FREQUENCIES_10, STANDARD_FREQUENCIES_16, STANDARD_FREQUENCIES_32 } from './presets';
 
+export type AudioSourceType = 'synth' | 'file' | 'stream' | 'mic' | 'system' | 'none';
+
+export interface PlaybackState {
+  sourceType: AudioSourceType;
+  isPlaying: boolean;
+  trackTitle: string;
+  stationId: string | null;
+  currentTime: number;
+  duration: number;
+  isBuffering: boolean;
+}
+
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private isInitialized = false;
@@ -27,8 +39,13 @@ class AudioEngine {
   private reverbNode: ConvolverNode | null = null;
   private reverbWetGain: GainNode | null = null;
 
-  // Source management
-  private currentSourceType: 'synth' | 'file' | 'mic' | 'system' | 'none' = 'none';
+  // Source management & State
+  private currentSourceType: AudioSourceType = 'none';
+  private currentTrackTitle: string = 'pp48 Sub-Bass Groove (Demo)';
+  private currentStationId: string | null = null;
+  private isBuffering = false;
+  private playbackListeners: Set<(state: PlaybackState) => void> = new Set();
+
   private audioElement: HTMLAudioElement | null = null;
   private mediaElementSource: MediaElementAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
@@ -452,7 +469,16 @@ class AudioEngine {
     this.synthTrackId = trackId;
     this.isSynthPlaying = true;
     this.currentSourceType = 'synth';
+    this.currentStationId = null;
+    this.currentTrackTitle =
+      trackId === 'sub_rumble'
+        ? 'Low Frequency Rumble 30Hz'
+        : trackId === 'electro_groove'
+        ? 'Electro Hi-Energy 128BPM'
+        : 'pp48 Sub-Bass Groove';
     this.synthStep = 0;
+    this.isBuffering = false;
+    this.notifyPlaybackChange();
 
     // Tempo in ms (120 bpm = 125ms 16th note)
     const bpm = trackId === 'sub_rumble' ? 90 : trackId === 'electro_groove' ? 128 : 110;
@@ -586,55 +612,118 @@ class AudioEngine {
     await this.initContext();
     this.stopAllSources();
 
+    this.currentSourceType = 'file';
+    this.currentTrackTitle = file.name.replace(/\.[^/.]+$/, '');
+    this.currentStationId = null;
+    this.isBuffering = false;
+
     const url = URL.createObjectURL(file);
     if (!this.audioElement) {
-      this.audioElement = new Audio();
-      this.audioElement.crossOrigin = 'anonymous';
+      this.initAudioElement();
+    }
+
+    if (this.audioElement) {
       this.audioElement.loop = true;
+      this.audioElement.src = url;
+      this.audioElement.playbackRate = this.spatial.tempo;
+
+      if (!this.mediaElementSource && this.ctx && this.inputNode) {
+        this.mediaElementSource = this.ctx.createMediaElementSource(this.audioElement);
+        this.mediaElementSource.connect(this.inputNode);
+      }
+
+      await this.audioElement.play();
     }
 
-    this.audioElement.src = url;
-    this.audioElement.playbackRate = this.spatial.tempo;
+    this.notifyPlaybackChange();
+    return this.audioElement!;
+  }
 
-    if (!this.mediaElementSource && this.ctx && this.inputNode) {
-      this.mediaElementSource = this.ctx.createMediaElementSource(this.audioElement);
-      this.mediaElementSource.connect(this.inputNode);
-    }
+  private initAudioElement(): void {
+    this.audioElement = new Audio();
+    this.audioElement.crossOrigin = 'anonymous';
+    this.audioElement.preload = 'auto';
 
-    await this.audioElement.play();
-    this.currentSourceType = 'file';
-    return this.audioElement;
+    this.audioElement.onplaying = () => {
+      this.isBuffering = false;
+      this.notifyPlaybackChange();
+    };
+
+    this.audioElement.onwaiting = () => {
+      this.isBuffering = true;
+      this.notifyPlaybackChange();
+    };
+
+    this.audioElement.onpause = () => {
+      this.notifyPlaybackChange();
+    };
+
+    this.audioElement.onerror = () => {
+      this.isBuffering = false;
+      this.notifyPlaybackChange();
+    };
   }
 
   // 2b. Play Online Audio Stream / Radio / URL
-  public async playStream(url: string): Promise<HTMLAudioElement> {
+  public async playStream(
+    url: string,
+    title = 'Online Live Stream',
+    stationId: string | null = null
+  ): Promise<HTMLAudioElement> {
     await this.initContext();
     this.stopAllSources();
 
+    this.currentSourceType = 'stream';
+    this.currentTrackTitle = title;
+    this.currentStationId = stationId;
+    this.isBuffering = true;
+    this.notifyPlaybackChange();
+
     if (!this.audioElement) {
-      this.audioElement = new Audio();
-      this.audioElement.crossOrigin = 'anonymous';
-      this.audioElement.loop = true;
+      this.initAudioElement();
     }
 
-    this.audioElement.src = url;
-    this.audioElement.playbackRate = this.spatial.tempo;
+    if (this.audioElement) {
+      this.audioElement.loop = false;
+      this.audioElement.playbackRate = this.spatial.tempo;
 
-    if (!this.mediaElementSource && this.ctx && this.inputNode) {
-      this.mediaElementSource = this.ctx.createMediaElementSource(this.audioElement);
-      this.mediaElementSource.connect(this.inputNode);
+      if (!this.mediaElementSource && this.ctx && this.inputNode) {
+        this.mediaElementSource = this.ctx.createMediaElementSource(this.audioElement);
+        this.mediaElementSource.connect(this.inputNode);
+      }
+
+      try {
+        this.audioElement.crossOrigin = 'anonymous';
+        this.audioElement.pause();
+        this.audioElement.src = url;
+        this.audioElement.load();
+        await this.audioElement.play();
+        this.isBuffering = false;
+        this.notifyPlaybackChange();
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          // Normal interruption when switching stations quickly
+          return this.audioElement;
+        }
+        // Fallback: If station rejects CORS, retry without crossOrigin so audio still plays on device!
+        try {
+          this.audioElement.removeAttribute('crossorigin');
+          this.audioElement.src = url;
+          this.audioElement.load();
+          await this.audioElement.play();
+          this.isBuffering = false;
+          this.notifyPlaybackChange();
+          return this.audioElement;
+        } catch (retryErr: any) {
+          if (retryErr?.name === 'AbortError') return this.audioElement;
+          this.isBuffering = false;
+          this.notifyPlaybackChange();
+          throw retryErr;
+        }
+      }
     }
 
-    try {
-      await this.audioElement.play();
-    } catch {
-      // In case crossOrigin anonymous fails due to CORS, retry without crossOrigin
-      this.audioElement.removeAttribute('crossorigin');
-      await this.audioElement.play();
-    }
-
-    this.currentSourceType = 'file';
-    return this.audioElement;
+    return this.audioElement!;
   }
 
   // 3. Microphone Passthrough Mode
@@ -659,6 +748,10 @@ class AudioEngine {
       this.micSource.connect(this.inputNode);
     }
     this.currentSourceType = 'mic';
+    this.currentTrackTitle = 'Live Microphone / Line-In';
+    this.currentStationId = null;
+    this.isBuffering = false;
+    this.notifyPlaybackChange();
   }
 
   // 4. System / Streaming Apps Capture (YouTube, Spotify, Other Players)
@@ -747,6 +840,9 @@ class AudioEngine {
 
     if (this.audioElement) {
       this.audioElement.pause();
+      if (this.currentSourceType === 'stream') {
+        this.audioElement.removeAttribute('src');
+      }
     }
 
     if (this.micStream) {
@@ -778,6 +874,73 @@ class AudioEngine {
     }
 
     this.currentSourceType = 'none';
+    this.currentStationId = null;
+    this.isBuffering = false;
+    this.notifyPlaybackChange();
+  }
+
+  public notifyPlaybackChange(): void {
+    const state = this.getPlaybackState();
+    this.playbackListeners.forEach((listener) => {
+      try {
+        listener(state);
+      } catch {
+        // ignore
+      }
+    });
+  }
+
+  public subscribePlayback(listener: (state: PlaybackState) => void): () => void {
+    this.playbackListeners.add(listener);
+    listener(this.getPlaybackState());
+    return () => {
+      this.playbackListeners.delete(listener);
+    };
+  }
+
+  public getPlaybackState(): PlaybackState {
+    const el = this.audioElement;
+    return {
+      sourceType: this.currentSourceType,
+      isPlaying: this.getIsPlaying(),
+      trackTitle: this.currentTrackTitle,
+      stationId: this.currentStationId,
+      currentTime: el && this.currentSourceType === 'file' ? el.currentTime : 0,
+      duration: el && this.currentSourceType === 'file' ? el.duration || 0 : 0,
+      isBuffering: this.isBuffering,
+    };
+  }
+
+  public async togglePlayPause(): Promise<boolean> {
+    await this.initContext();
+    if (this.currentSourceType === 'synth') {
+      if (this.isSynthPlaying) {
+        this.stopAllSources();
+        return false;
+      } else {
+        await this.playSyntheticTrack(this.synthTrackId);
+        return true;
+      }
+    }
+    if (
+      (this.currentSourceType === 'file' || this.currentSourceType === 'stream') &&
+      this.audioElement
+    ) {
+      if (!this.audioElement.paused) {
+        this.audioElement.pause();
+        this.notifyPlaybackChange();
+        return false;
+      } else {
+        await this.audioElement.play();
+        this.notifyPlaybackChange();
+        return true;
+      }
+    }
+    if (this.currentSourceType === 'none') {
+      await this.playSyntheticTrack('synth_bass');
+      return true;
+    }
+    return false;
   }
 
   public resumeAudioContext(): void {
@@ -790,13 +953,24 @@ class AudioEngine {
     return this.audioElement;
   }
 
-  public getCurrentSourceType(): 'synth' | 'file' | 'mic' | 'system' | 'none' {
+  public getCurrentSourceType(): AudioSourceType {
     return this.currentSourceType;
+  }
+
+  public getTrackTitle(): string {
+    return this.currentTrackTitle;
+  }
+
+  public getActiveStationId(): string | null {
+    return this.currentStationId;
   }
 
   public getIsPlaying(): boolean {
     if (this.currentSourceType === 'synth') return this.isSynthPlaying;
-    if (this.currentSourceType === 'file' && this.audioElement) {
+    if (
+      (this.currentSourceType === 'file' || this.currentSourceType === 'stream') &&
+      this.audioElement
+    ) {
       return !this.audioElement.paused;
     }
     if (this.currentSourceType === 'mic' || this.currentSourceType === 'system') return true;

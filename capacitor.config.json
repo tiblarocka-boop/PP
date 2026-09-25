@@ -2,5 +2,8 @@
   "appId": "com.fatyliser.eq",
   "appName": "Fatyliser",
   "webDir": "dist",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true
+  }
 }

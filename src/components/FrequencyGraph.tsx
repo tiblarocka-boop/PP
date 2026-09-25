@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { EQBand, VisualizerMode } from '../types/audio';
 import { audioEngine } from '../utils/audioEngine';
-import { Eye, EyeOff, Activity, BarChart2 } from 'lucide-react';
+import { getHarmanTargetDb } from '../utils/harmanCurve';
+import { Eye, EyeOff, Activity, BarChart2, Target } from 'lucide-react';
 
 interface FrequencyGraphProps {
   bands: EQBand[];
@@ -21,6 +22,7 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeBandIndex, setActiveBandIndex] = useState<number | null>(null);
+  const [harmanTargetMode, setHarmanTargetMode] = useState<'off' | 'over-ear' | 'in-ear'>('over-ear');
   const animationFrameId = useRef<number | null>(null);
 
   // Peak levels for VU meter
@@ -206,6 +208,28 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({
       ctx.stroke();
       ctx.shadowBlur = 0; // reset
 
+      // 3b. Harman Target Reference Curve (Intermittent / Dashed lines)
+      if (harmanTargetMode !== 'off') {
+        ctx.save();
+        ctx.setLineDash([5, 4]); // Intermittent dashed lines
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.7)';
+        ctx.shadowBlur = 5;
+
+        ctx.beginPath();
+        for (let i = 0; i < freqs.length; i++) {
+          const f = freqs[i];
+          const targetDb = getHarmanTargetDb(f, harmanTargetMode);
+          const x = freqToX(f, width);
+          const y = dbToY(targetDb, height);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // 4. Interactive Band Nodes (dots on curve)
       bands.forEach((b, i) => {
         const bx = freqToX(b.frequency, width);
@@ -238,7 +262,7 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [bands, isBypassed, visualizerMode, activeBandIndex, dbToY, freqToX]);
+  }, [bands, isBypassed, visualizerMode, activeBandIndex, harmanTargetMode, dbToY, freqToX]);
 
   // Handle Resize
   useEffect(() => {
@@ -313,8 +337,33 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({
           <span className="text-slate-500 hidden sm:inline">20 Hz – 20 kHz</span>
         </div>
 
-        {/* Visualizer Mode Toggle */}
-        <div className="flex items-center gap-2">
+        {/* Toolbar Buttons: Harman Target & Visualizer Mode */}
+        <div className="flex items-center gap-1.5">
+          {/* Harman Target Intermittent Curve Toggle */}
+          <button
+            onClick={() =>
+              setHarmanTargetMode((prev) =>
+                prev === 'off' ? 'over-ear' : prev === 'over-ear' ? 'in-ear' : 'off'
+              )
+            }
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition-all border ${
+              harmanTargetMode !== 'off'
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-sm shadow-amber-500/20'
+                : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+            }`}
+            title="Toggle Harman Target Reference Curve (Intermittent Dashed Lines)"
+          >
+            <Target className="w-3 h-3 text-amber-400" />
+            <span>
+              {harmanTargetMode === 'over-ear'
+                ? 'Harman OE'
+                : harmanTargetMode === 'in-ear'
+                ? 'Harman IE'
+                : 'Target'}
+            </span>
+          </button>
+
+          {/* Visualizer Mode Toggle */}
           <button
             onClick={onToggleVisualizerMode}
             className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 transition-colors"
@@ -349,6 +398,14 @@ export const FrequencyGraph: React.FC<FrequencyGraphProps> = ({
           onPointerUp={handlePointerUp}
           className="w-full h-full block cursor-crosshair rounded-lg bg-[#070a12]"
         />
+
+        {/* Harman Target Intermittent Line Legend (top left) */}
+        {harmanTargetMode !== 'off' && (
+          <div className="absolute top-1.5 left-8 pointer-events-none flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-950/70 border border-amber-500/40 text-[9px] font-mono text-amber-300 shadow-sm backdrop-blur-xs">
+            <span className="font-bold tracking-tighter">-- - --</span>
+            <span>Harman {harmanTargetMode === 'over-ear' ? 'Over-Ear' : 'In-Ear'}</span>
+          </div>
+        )}
 
         {/* dB Scale Legend (Left side) */}
         <div className="absolute left-1.5 top-0 bottom-0 flex flex-col justify-between py-1 pointer-events-none text-[8px] font-num text-slate-500">

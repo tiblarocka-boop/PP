@@ -34,10 +34,15 @@ export interface SpatialSettings {
 export interface EQPreset {
   id: string;
   name: string;
-  category: 'Standard' | 'Bass' | 'Genre' | 'pp48 Special' | 'Custom';
+  category: 'Standard' | 'Bass' | 'Genre' | 'pp48 Special' | 'Custom' | 'Headphones (AutoEq)';
   author?: string;
+  headphoneModel?: string;
+  source?: string;
+  notes?: string;
   preamp: number; // -15 to +15 dB
   bands10: number[]; // 10 gains
+  bands16?: number[];
+  bands32?: number[];
   bassGain?: number;
   trebleGain?: number;
 }
