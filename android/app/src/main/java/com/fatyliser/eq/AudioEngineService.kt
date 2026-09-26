@@ -23,7 +23,7 @@ class AudioEngineService : Service() {
         val FREQUENCIES = listOf(
             "20", "31", "45", "63", "90", "125", "180", "250", "355", "500",
             "710", "1k", "1.4k", "2k", "2.8k", "4k", "5.6k", "8k", "11k", "16k",
-            "20k", "22k", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10"
+            "20k", "21k", "22k", "23k", "24k", "B1", "B2", "B3", "B4", "B5", "B6", "B7"
         )
     }
 
@@ -35,16 +35,24 @@ class AudioEngineService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(1, createNotification())
+        try {
+            startForeground(1, createNotification())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         startTrackingYouTube()
     }
 
     private fun startTrackingYouTube() {
         serviceScope.launch {
             while (isActive) {
-                val sessionIds = scrapeYouTubeSessions()
-                withContext(Dispatchers.Main) {
-                    sessionIds.forEach { id -> applyEqualizerToSession(id) }
+                try {
+                    val sessionIds = scrapeYouTubeSessions()
+                    withContext(Dispatchers.Main) {
+                        sessionIds.forEach { id -> applyEqualizerToSession(id) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
                 delay(2000)
             }
@@ -60,10 +68,9 @@ class AudioEngineService : Service() {
             val sessionPattern = Regex("""Session\s+(\d+)""")
 
             while (line != null) {
-                val currentLine = line ?: ""
+                val currentLine = line
                 if (currentLine.contains("com.google.android.youtube") || currentLine.contains("youtube")) {
                     sessionPattern.find(currentLine)?.let { match ->
-                        // MANDATORY SYNTAX FIX: Target the explicit matching group index element string
                         val extractedId = match.groupValues[1].toInt()
                         sessions.add(extractedId)
                     }
@@ -71,13 +78,16 @@ class AudioEngineService : Service() {
                 line = reader.readLine()
             }
             reader.close()
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        }
         return sessions
     }
 
     private fun applyEqualizerToSession(sessionId: Int) {
-        if (effectsMap.containsKey(sessionId)) return
+        if (effectsMap.containsKey(sessionId) || sessionId <= 0) return
         try {
+            // Absolute baseline fallback initialization
             val builder = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 2, true, BAND_COUNT, false, 0, false, 0, true
@@ -85,22 +95,36 @@ class AudioEngineService : Service() {
             
             val config = builder.build()
             
-            // MANDATORY INITIALIZATION FIX: Map and scale exponential frequencies natively across channels
+            // Safety-checked sequential cutoff math
             for (ch in 0 until 2) {
+                var lastCutoff = 20f
                 for (i in 0 until BAND_COUNT) {
                     try {
                         val band = config.getPreEqBandByChannelIndex(ch, i)
-                        // Target the correct initialization parameter properties cleanly
-                        band.cutoffFrequency = 20f * Math.pow(1.26, i.toDouble()).toFloat()
+                        band.enabled = true
+                        
+                        // Incrementally scale up cutoff frequency ensuring it never breaks validation rules
+                        val calculatedCutoff = 20f * Math.pow(1.25, i.toDouble()).toFloat()
+                        if (calculatedCutoff > lastCutoff) {
+                            band.cutoffFrequency = calculatedCutoff
+                            lastCutoff = calculatedCutoff
+                        } else {
+                            band.cutoffFrequency = lastCutoff + 10f
+                            lastCutoff += 10f
+                        }
                         band.gain = bandGains[i]
-                    } catch (e: Exception) { e.printStackTrace() }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
 
             val effect = DynamicsProcessing(0, sessionId, config)
             effect.enabled = true
             effectsMap[sessionId] = effect
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) { 
+            e.printStackTrace() 
+        }
     }
 
     fun updateBandGain(bandIndex: Int, gainDb: Float) {
@@ -112,7 +136,9 @@ class AudioEngineService : Service() {
                     val rightBand = effect.getPreEqBandByChannelIndex(1, bandIndex)
                     leftBand.gain = gainDb
                     rightBand.gain = gainDb
-                } catch (e: Exception) { e.printStackTrace() }
+                } catch (e: Exception) { 
+                    e.printStackTrace() 
+                }
             }
         }
     }
@@ -134,14 +160,20 @@ class AudioEngineService : Service() {
         }
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Fatyliser Engine Running")
-            .setContentText("Processing system media in the background...")
+            .setContentText("Processing system media...")
             .setSmallIcon(android.R.drawable.ic_media_play)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
     override fun onDestroy() {
         serviceScope.cancel()
-        effectsMap.values.forEach { it.enabled = false; it.release() }
+        effectsMap.values.forEach { 
+            try {
+                it.enabled = false
+                it.release()
+            } catch (e: Exception) { e.printStackTrace() }
+        }
         effectsMap.clear()
         super.onDestroy()
     }
