@@ -87,7 +87,6 @@ class AudioEngineService : Service() {
     private fun applyEqualizerToSession(sessionId: Int) {
         if (effectsMap.containsKey(sessionId) || sessionId <= 0) return
         try {
-            // Absolute baseline fallback initialization
             val builder = DynamicsProcessing.Config.Builder(
                 DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
                 2, true, BAND_COUNT, false, 0, false, 0, true
@@ -95,15 +94,11 @@ class AudioEngineService : Service() {
             
             val config = builder.build()
             
-            // Safety-checked sequential cutoff math
             for (ch in 0 until 2) {
                 var lastCutoff = 20f
                 for (i in 0 until BAND_COUNT) {
                     try {
                         val band = config.getPreEqBandByChannelIndex(ch, i)
-                        band.enabled = true
-                        
-                        // Incrementally scale up cutoff frequency ensuring it never breaks validation rules
                         val calculatedCutoff = 20f * Math.pow(1.25, i.toDouble()).toFloat()
                         if (calculatedCutoff > lastCutoff) {
                             band.cutoffFrequency = calculatedCutoff
@@ -113,9 +108,7 @@ class AudioEngineService : Service() {
                             lastCutoff += 10f
                         }
                         band.gain = bandGains[i]
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    } catch (e: Exception) { e.printStackTrace() }
                 }
             }
 
@@ -145,12 +138,6 @@ class AudioEngineService : Service() {
 
     fun getBandGains(): FloatArray = bandGains
     fun getActiveSessionCount(): Int = effectsMap.size
-    
-    fun updateAllBands(newGains: FloatArray) {
-        for (i in 0 until BAND_COUNT.coerceAtMost(newGains.size)) {
-            updateBandGain(i, newGains[i])
-        }
-    }
 
     private fun createNotification(): Notification {
         val channelId = "FatyliserChannel"
