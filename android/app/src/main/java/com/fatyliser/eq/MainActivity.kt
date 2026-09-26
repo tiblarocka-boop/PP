@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.layout.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material3.*
@@ -35,7 +35,6 @@ class MainActivity : ComponentActivity() {
             isBound = true
             activeSessions = s.getActiveSessionCount()
             
-            // Synchronize visual sliders with current engine states
             val currentGains = s.getBandGains()
             for (i in 0 until 32) {
                 if (i < currentGains.size) {
@@ -49,9 +48,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+        super.onCreate(savedInstanceState)
         
-        // Boot up and bind background audio pipeline
         val intent = Intent(this, AudioEngineService::class.java)
         startService(intent)
         bindService(intent, connection, Context.BIND_AUTO_CREATE)
@@ -68,7 +66,6 @@ class MainActivity : ComponentActivity() {
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Branding Section / Text Logo
                         Text(
                             text = "🎚️ Fatyliser Equalizer",
                             fontSize = 24.sp,
@@ -98,7 +95,6 @@ class MainActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Render 32 Sliders into a clean, auto-wrapping visual grid matrix
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = 75.dp),
                             modifier = Modifier.fillMaxSize(),
@@ -152,8 +148,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onCreate()
+    override fun onPostResume() {
+        super.onResume()
         audioEngineService?.let {
             activeSessions = it.getActiveSessionCount()
         }
