@@ -19,7 +19,7 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Find and Build Android Project
+    - name: Find, Patch and Build Android Project
       run: |
         echo "Searching for the folder containing settings.gradle or build.gradle..."
         TARGET_DIR=$(find . -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1 | xargs dirname)
@@ -31,6 +31,9 @@ jobs:
         echo "Injecting mandatory AndroidX flags into properties..."
         echo "android.useAndroidX=true" >> "$TARGET_DIR/gradlew.properties"
         echo "android.useAndroidX=true" >> "$TARGET_DIR/gradle.properties"
+        
+        echo "Patching AndroidManifest foregroundServiceType version mapping mismatch..."
+        find . -name "AndroidManifest.xml" -exec sed -i 's/mediaProcessing/mediaPlayback/g' {} +
         
         echo "Found Android project files inside subfolder: $TARGET_DIR"
         cd "$TARGET_DIR"
