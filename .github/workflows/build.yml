@@ -25,18 +25,21 @@ jobs:
         TARGET_DIR=$(find . -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1 | xargs dirname)
         
         if [ -z "$TARGET_DIR" ] || [ "$TARGET_DIR" = "." ]; then
-          echo "Project files found in root or no subfolder found. Attempting global fallback..."
-          gradle assembleDebug
+          TARGET_DIR="."
+        fi
+        
+        echo "Injecting mandatory AndroidX flags into properties..."
+        echo "android.useAndroidX=true" >> "$TARGET_DIR/gradlew.properties"
+        echo "android.useAndroidX=true" >> "$TARGET_DIR/gradle.properties"
+        
+        echo "Found Android project files inside subfolder: $TARGET_DIR"
+        cd "$TARGET_DIR"
+        
+        if [ -f "./gradlew" ]; then
+          chmod +x gradlew
+          ./gradlew assembleDebug
         else
-          echo "Found Android project files inside subfolder: $TARGET_DIR"
-          cd "$TARGET_DIR"
-          
-          if [ -f "./gradlew" ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug
-          else
-            gradle assembleDebug
-          fi
+          gradle assembleDebug
         fi
 
     - name: Find and Upload Finished APK Artifact
